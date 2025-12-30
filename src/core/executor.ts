@@ -11,6 +11,11 @@ import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import * as readline from 'readline';
 
+// Global deduplication - prevents duplicate transactions across all code paths
+const pendingBuys = new Map<string, number>(); // marketId+side -> timestamp
+const pendingSells = new Set<string>(); // positionId
+const BUY_COOLDOWN_MS = 5000; // 5 second cooldown between buys for same market+side
+
 // Real trading requires explicit confirmation
 const REAL_TRADING_WARNING = `
 ================================================================================
@@ -150,32 +155,71 @@ class UnifiedExecutor implements Executor {
   }
 
   async executeBuy(opportunity: Opportunity): Promise<Position | null> {
-    if (this.mode === 'real') {
-      // Extra logging for real trades
-      logger.log('INFO', 'REAL TRADE: Executing BUY', {
-        market: opportunity.market.question,
+    // Deduplication: prevent buying same market+side within cooldown
+    const buyKey = `${opportunity.market.id}|${opportunity.side}`;
+    const now = Date.now();
+    const lastBuy = pendingBuys.get(buyKey);
+
+    if (lastBuy && now - lastBuy < BUY_COOLDOWN_MS) {
+      logger.log('INFO', 'Buy skipped - duplicate within cooldown', {
+        market: opportunity.market.question.substring(0, 40),
         side: opportunity.side,
-        price: opportunity.entryPrice,
-        edge: opportunity.edge,
-        confidence: opportunity.confidence,
+        cooldownRemaining: BUY_COOLDOWN_MS - (now - lastBuy),
       });
-      return realExecutor.executeBuy(opportunity);
+      return null;
     }
-    return paperExecutor.executeBuy(opportunity);
+
+    // Mark as pending BEFORE execution
+    pendingBuys.set(buyKey, now);
+
+    try {
+      if (this.mode === 'real') {
+        logger.log('INFO', 'REAL TRADE: Executing BUY', {
+          market: opportunity.market.question,
+          side: opportunity.side,
+          price: opportunity.entryPrice,
+          edge: opportunity.edge,
+          confidence: opportunity.confidence,
+        });
+        return await realExecutor.executeBuy(opportunity);
+      }
+      return await paperExecutor.executeBuy(opportunity);
+    } catch (error) {
+      // On error, remove from pending to allow retry
+      pendingBuys.delete(buyKey);
+      throw error;
+    }
   }
 
   async executeSell(position: Position, currentPrice: number): Promise<Trade | null> {
-    if (this.mode === 'real') {
-      logger.log('INFO', 'REAL TRADE: Executing SELL', {
-        market: position.marketQuestion,
-        side: position.side,
-        entryPrice: position.entryPrice,
-        exitPrice: currentPrice,
-        shares: position.shares,
+    // Deduplication: prevent selling same position multiple times
+    if (pendingSells.has(position.id)) {
+      logger.log('INFO', 'Sell skipped - already pending', {
+        positionId: position.id,
+        market: position.marketQuestion.substring(0, 40),
       });
-      return realExecutor.executeSell(position, currentPrice);
+      return null;
     }
-    return paperExecutor.executeSell(position, currentPrice);
+
+    // Mark as pending BEFORE execution
+    pendingSells.add(position.id);
+
+    try {
+      if (this.mode === 'real') {
+        logger.log('INFO', 'REAL TRADE: Executing SELL', {
+          market: position.marketQuestion,
+          side: position.side,
+          entryPrice: position.entryPrice,
+          exitPrice: currentPrice,
+          shares: position.shares,
+        });
+        return await realExecutor.executeSell(position, currentPrice);
+      }
+      return await paperExecutor.executeSell(position, currentPrice);
+    } finally {
+      // Always remove from pending after execution (success or failure)
+      pendingSells.delete(position.id);
+    }
   }
 
   async executeArbitrageBuy(
