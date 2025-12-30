@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  trader:
+    build: .
+    container_name: polymarket-trader
+    restart: unless-stopped
+    environment:
+      # Trading Mode
+      - PAPER_MODE=true
+      - STARTING_BALANCE=100
+
+      # API Endpoints
+      - POLYMARKET_GAMMA_HOST=https://gamma-api.polymarket.com
+      - POLYMARKET_CLOB_HOST=https://clob.polymarket.com
+
+      # Optional: Real trading credentials (uncomment to enable)
+      # - POLYMARKET_ID=your_wallet_address
+      # - POLYMARKET_KEY=your_private_key
+
+      # Strategy Allocations (must sum to 100)
+      - ALLOCATION_ARBITRAGE=30
+      - ALLOCATION_VALUE=30
+      - ALLOCATION_WHALE=20
+      - ALLOCATION_MOMENTUM=15
+      - ALLOCATION_MEAN_REVERSION=5
+
+      # Risk Limits
+      - MAX_POSITION_PCT=10
+      - MAX_CATEGORY_PCT=30
+      - MIN_BUFFER_PCT=20
+      - DRAWDOWN_WARNING_PCT=15
+      - DRAWDOWN_HALT_PCT=25
+
+      # Position Sizing
+      - KELLY_FRACTION=0.25
+      - MIN_POSITION_USD=10
+      - MAX_POSITION_USD=5000
+
+      # Trading Parameters
+      - SCAN_INTERVAL_MS=60000
+      - MIN_MARKET_LIQUIDITY=10000
+      - MIN_EDGE_PCT=2
+
+      # Logging
+      - LOG_LEVEL=info
+    volumes:
+      # Persist database and logs
+      - trader-data:/app/data
+      - ./logs:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build: .
+    container_name: polymarket-api
+    restart: unless-stopped
+    command: ["node", "dist/api/server.js"]
+    ports:
+      - "3000:3000"
+    environment:
+      - API_PORT=3000
+    volumes:
+      # Share database with trader
+      - trader-data:/app/data
+    depends_on:
+      - trader
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  trader-data:

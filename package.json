@@ -1,0 +1,45 @@
+{
+  "name": "polymarket-paper-trader",
+  "version": "1.0.0",
+  "description": "Polymarket adaptive paper trading system",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:docker": "node dist/index-docker.js",
+    "dev": "tsx watch src/index.ts",
+    "dev:docker": "tsx src/index-docker.ts",
+    "paper": "tsx src/index.ts --paper",
+    "api": "tsx src/api/server.ts",
+    "api:prod": "node dist/api/server.js",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@types/ws": "^8.18.1",
+    "axios": "^1.6.0",
+    "better-sqlite3": "^11.0.0",
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "bottleneck": "^2.19.5",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.3",
+    "dotenv": "^16.3.0",
+    "ethers": "^5.7.2",
+    "pino": "^8.17.0",
+    "pino-pretty": "^10.3.0",
+    "ws": "^8.18.3",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/blessed": "^0.1.27",
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
