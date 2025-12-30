@@ -12,6 +12,7 @@ const PRICE_DROP_THRESHOLD = 0.05; // 5% drop triggers mean-reversion
 const PRICE_SPIKE_THRESHOLD = 0.05; // 5% spike on positions triggers exit check
 const WHALE_INSTANT_THRESHOLD = 5000; // $5k+ whale trade triggers instant follow
 const ARB_SPREAD_THRESHOLD = 0.98; // Sum < 0.98 triggers instant arb
+const MIN_HOLD_TIME_MS = 60000; // Minimum 60 seconds before selling (prevents instant flips)
 
 // Cooldowns to prevent over-trading (ms)
 const PRICE_TRADE_COOLDOWN = 60000; // 1 min between price-triggered trades per asset
@@ -367,9 +368,16 @@ export class EventTrader extends EventEmitter {
 
   private async checkInstantExit(assetId: string, currentPrice: number): Promise<void> {
     const positions = store.getOpenPositions();
+    const now = Date.now();
 
     for (const position of positions) {
       if (position.outcomeId !== assetId) continue;
+
+      // Enforce minimum hold time to prevent instant flip trades
+      const holdTime = now - new Date(position.entryTime).getTime();
+      if (holdTime < MIN_HOLD_TIME_MS) {
+        continue; // Skip - position too new
+      }
 
       const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
 

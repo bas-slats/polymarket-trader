@@ -452,6 +452,10 @@ class PolymarketTrader {
       // Update position price
       store.updatePositionPrice(position.id, currentPrice);
 
+      // Enforce minimum hold time (60 seconds) to prevent instant flip trades
+      const holdTime = Date.now() - new Date(position.entryTime).getTime();
+      if (holdTime < 60000) continue;
+
       // Check exit conditions based on strategy
       const strategy = position.strategy === 'arbitrage' ? arbitrageStrategy : valueBettingStrategy;
 
