@@ -153,7 +153,7 @@ class DockerTraderWithUI {
         if (data.position) {
           const p = await executor.getPortfolio();
           const market = data.position.marketQuestion.substring(0, 50);
-          logEvent('RT_BUY', `${data.type} | ${market}... | ${data.position.side} @ $${data.position.entryPrice.toFixed(3)}`, p);
+          logEvent('RT_BUY', `${data.type} | ${market}... | ${data.position.side} @ $${data.position.entryPrice.toFixed(3)} | Size: $${data.position.size.toFixed(2)}`, p);
         }
       });
 
@@ -297,7 +297,7 @@ class DockerTraderWithUI {
       if (position) {
         const p = await executor.getPortfolio();
         const market = opp.market.question.substring(0, 40);
-        logEvent('VALUE_BUY', `${market}... | ${opp.side} | Edge: ${(opp.edge * 100).toFixed(1)}%`, p);
+        logEvent('VALUE_BUY', `${market}... | ${opp.side} @ $${opp.entryPrice.toFixed(3)} | Edge: ${(opp.edge * 100).toFixed(1)}% | Size: $${position.size.toFixed(2)}`, p);
       }
     }
   }
@@ -308,7 +308,7 @@ class DockerTraderWithUI {
       if (position) {
         const p = await executor.getPortfolio();
         const market = opp.market.question.substring(0, 40);
-        logEvent('WHALE_BUY', `${market}... | ${opp.side} @ $${opp.entryPrice.toFixed(3)}`, p);
+        logEvent('WHALE_BUY', `${market}... | ${opp.side} @ $${opp.entryPrice.toFixed(3)} | Size: $${position.size.toFixed(2)}`, p);
       }
     }
   }
@@ -344,7 +344,7 @@ class DockerTraderWithUI {
           const p = await executor.getPortfolio();
           const pnl = trade.pnl ?? 0;
           const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
-          logEvent('SELL', `${position.side} @ $${currentPrice.toFixed(3)} | ${pnlStr}`, p);
+          logEvent('SELL', `${position.side} @ $${currentPrice.toFixed(3)} | ${pnlStr} | Size: $${trade.size.toFixed(2)}`, p);
         }
       }
     }
