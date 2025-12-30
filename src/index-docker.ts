@@ -230,33 +230,37 @@ class DockerTrader {
         (m) => m.liquidity >= config.trading.minMarketLiquidity
       );
 
+      // Always check exits first (sells are always allowed)
+      await this.checkExits();
+
+      // Check if we can open new positions
       const canTrade = executor.canTrade();
+      let arbOpportunities: any[] = [];
+      let valueOpportunities: any[] = [];
+      let whaleOpportunities: any[] = [];
+
       if (!canTrade.allowed) {
         const p = await executor.getPortfolio();
-        logEvent('HALTED', canTrade.reason || 'Trading halted', p);
-        return;
-      }
+        logEvent('SELL_ONLY', canTrade.reason || 'New buys halted', p);
+      } else {
+        // Scan for arbitrage opportunities
+        arbOpportunities = arbitrageStrategy.scan(eligibleMarkets);
+        if (arbOpportunities.length > 0) {
+          await this.processArbitrageOpportunities(arbOpportunities.slice(0, 3));
+        }
 
-      // Scan for arbitrage opportunities
-      const arbOpportunities = arbitrageStrategy.scan(eligibleMarkets);
-      if (arbOpportunities.length > 0) {
-        await this.processArbitrageOpportunities(arbOpportunities.slice(0, 3));
-      }
+        // Scan for value betting opportunities
+        valueOpportunities = valueBettingStrategy.scan(eligibleMarkets);
+        if (valueOpportunities.length > 0) {
+          await this.processValueOpportunities(valueOpportunities.slice(0, 3));
+        }
 
-      // Scan for value betting opportunities
-      const valueOpportunities = valueBettingStrategy.scan(eligibleMarkets);
-      if (valueOpportunities.length > 0) {
-        await this.processValueOpportunities(valueOpportunities.slice(0, 3));
+        // Scan for whale signals
+        whaleOpportunities = whaleTracker.getSignals(eligibleMarkets);
+        if (whaleOpportunities.length > 0) {
+          await this.processWhaleOpportunities(whaleOpportunities.slice(0, 2));
+        }
       }
-
-      // Scan for whale signals
-      const whaleOpportunities = whaleTracker.getSignals(eligibleMarkets);
-      if (whaleOpportunities.length > 0) {
-        await this.processWhaleOpportunities(whaleOpportunities.slice(0, 2));
-      }
-
-      // Check positions for exit
-      await this.checkExits();
 
       // Log scan summary
       const p = await executor.getPortfolio();

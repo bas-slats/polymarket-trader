@@ -37,6 +37,12 @@ export class PolymarketWebSocket extends EventEmitter {
   // Price cache for quick lookups
   private priceCache: Map<string, number> = new Map();
 
+  constructor() {
+    super();
+    // Prevent unhandled error crashes
+    this.on('error', () => {});
+  }
+
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -67,8 +73,8 @@ export class PolymarketWebSocket extends EventEmitter {
           try {
             const message = JSON.parse(data.toString());
             this.handleMessage(message);
-          } catch (error) {
-            this.emit('error', new Error('Failed to parse WebSocket message'));
+          } catch {
+            // Silently ignore non-JSON messages (heartbeats, etc.)
           }
         });
 

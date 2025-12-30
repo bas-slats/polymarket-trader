@@ -272,38 +272,39 @@ class PolymarketTrader {
       dashboard.updateScanInfo(this.scanCount, this.markets.length, eligibleMarkets.length);
       dashboard.log(`Scan #${this.scanCount}: ${eligibleMarkets.length}/${this.markets.length} eligible markets`, 'info');
 
-      // Check if we can trade
-      const canTrade = executor.canTrade();
-      if (!canTrade.allowed) {
-        dashboard.log(`Trading halted: ${canTrade.reason}`, 'warning');
-        await this.updateDashboard();
-        dashboard.render();
-        return;
-      }
-
-      // Scan for arbitrage opportunities
-      const arbOpportunities = arbitrageStrategy.scan(eligibleMarkets);
-      if (arbOpportunities.length > 0) {
-        dashboard.log(`Found ${arbOpportunities.length} arbitrage opportunities`, 'success');
-        await this.processArbitrageOpportunities(arbOpportunities.slice(0, 3));
-      }
-
-      // Scan for value betting opportunities
-      const valueOpportunities = valueBettingStrategy.scan(eligibleMarkets);
-      if (valueOpportunities.length > 0) {
-        dashboard.log(`Found ${valueOpportunities.length} value betting opportunities`, 'success');
-        await this.processValueOpportunities(valueOpportunities.slice(0, 3));
-      }
-
-      // Scan for whale signals
-      const whaleOpportunities = whaleTracker.getSignals(eligibleMarkets);
-      if (whaleOpportunities.length > 0) {
-        dashboard.log(`Found ${whaleOpportunities.length} whale signals`, 'success');
-        await this.processWhaleOpportunities(whaleOpportunities.slice(0, 2));
-      }
-
-      // Check positions for exit
+      // Always check exits first (sells are always allowed)
       await this.checkExits();
+
+      // Check if we can open new positions
+      const canTrade = executor.canTrade();
+      let arbOpportunities: ArbitrageOpportunity[] = [];
+      let valueOpportunities: Opportunity[] = [];
+      let whaleOpportunities: Opportunity[] = [];
+
+      if (!canTrade.allowed) {
+        dashboard.log(`Sell-only mode: ${canTrade.reason}`, 'warning');
+      } else {
+        // Scan for arbitrage opportunities
+        arbOpportunities = arbitrageStrategy.scan(eligibleMarkets);
+        if (arbOpportunities.length > 0) {
+          dashboard.log(`Found ${arbOpportunities.length} arbitrage opportunities`, 'success');
+          await this.processArbitrageOpportunities(arbOpportunities.slice(0, 3));
+        }
+
+        // Scan for value betting opportunities
+        valueOpportunities = valueBettingStrategy.scan(eligibleMarkets);
+        if (valueOpportunities.length > 0) {
+          dashboard.log(`Found ${valueOpportunities.length} value betting opportunities`, 'success');
+          await this.processValueOpportunities(valueOpportunities.slice(0, 3));
+        }
+
+        // Scan for whale signals
+        whaleOpportunities = whaleTracker.getSignals(eligibleMarkets);
+        if (whaleOpportunities.length > 0) {
+          dashboard.log(`Found ${whaleOpportunities.length} whale signals`, 'success');
+          await this.processWhaleOpportunities(whaleOpportunities.slice(0, 2));
+        }
+      }
 
       // Log scan results
       const scanPortfolio = await executor.getPortfolio();
