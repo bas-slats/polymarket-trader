@@ -18,11 +18,14 @@ COPY src ./src
 # Build TypeScript
 RUN npm run build
 
+# Copy static web UI to dist
+RUN mkdir -p /app/dist/ui/web && cp -r /app/src/ui/web/* /app/dist/ui/web/
+
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
 # Set environment variables
 ENV NODE_ENV=production
 
-# Run the Docker-specific entry point
-CMD ["node", "dist/index-docker.js"]
+# Run the Docker entry point with web UI
+CMD ["node", "dist/index-docker-full.js"]

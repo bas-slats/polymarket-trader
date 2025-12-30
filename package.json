@@ -7,9 +7,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "start:docker": "node dist/index-docker.js",
+    "start:docker": "node dist/index-docker-full.js",
     "dev": "tsx watch src/index.ts",
-    "dev:docker": "tsx src/index-docker.ts",
+    "dev:docker": "tsx src/index-docker-full.ts",
     "paper": "tsx src/index.ts --paper",
     "api": "tsx src/api/server.ts",
     "api:prod": "node dist/api/server.js",

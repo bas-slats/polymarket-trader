@@ -5,10 +5,15 @@ services:
     build: .
     container_name: polymarket-trader
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     environment:
       # Trading Mode
       - PAPER_MODE=true
       - STARTING_BALANCE=100
+
+      # API Port
+      - API_PORT=3000
 
       # API Endpoints
       - POLYMARKET_GAMMA_HOST=https://gamma-api.polymarket.com
@@ -41,38 +46,11 @@ services:
       - SCAN_INTERVAL_MS=60000
       - MIN_MARKET_LIQUIDITY=10000
       - MIN_EDGE_PCT=2
-
-      # Logging
-      - LOG_LEVEL=info
     volumes:
-      # Persist database and logs
-      - trader-data:/app/data
+      - ./data:/app/data
       - ./logs:/app/logs
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-
-  api:
-    build: .
-    container_name: polymarket-api
-    restart: unless-stopped
-    command: ["node", "dist/api/server.js"]
-    ports:
-      - "3000:3000"
-    environment:
-      - API_PORT=3000
-    volumes:
-      # Share database with trader
-      - trader-data:/app/data
-    depends_on:
-      - trader
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-
-volumes:
-  trader-data:

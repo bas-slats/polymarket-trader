@@ -1,10 +1,49 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { store } from '../data/sqlite-store.js';
 import { executor } from '../core/executor.js';
 import { eventTrader } from '../core/event-trader.js';
 import type { StrategyName } from '../types/index.js';
 
 const PORT = process.env.API_PORT || 3000;
+
+// Get directory path for static files
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Try multiple paths for the static files (dev vs built)
+function getStaticFilePath(filename: string): string | null {
+  const paths = [
+    join(__dirname, '..', 'ui', 'web', filename),  // Built: dist/api -> dist/ui/web
+    join(__dirname, '..', '..', 'src', 'ui', 'web', filename),  // Dev from dist
+    join(process.cwd(), 'src', 'ui', 'web', filename),  // CWD fallback
+  ];
+
+  for (const p of paths) {
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+// Serve static file
+function serveStatic(res: ServerResponse, filename: string, contentType: string): boolean {
+  const filePath = getStaticFilePath(filename);
+  if (!filePath) return false;
+
+  try {
+    const content = readFileSync(filePath);
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': 'no-cache'
+    });
+    res.end(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Simple JSON response helper
 function json(res: ServerResponse, data: unknown, status = 200): void {
@@ -345,11 +384,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       error(res, `Server error: ${err}`, 500);
     }
   } else {
+    // Serve web dashboard at root
+    if (path === '/' || path === '/index.html') {
+      if (serveStatic(res, 'index.html', 'text/html')) return;
+    }
+
     // API documentation
-    if (path === '/api' || path === '/') {
+    if (path === '/api') {
       json(res, {
         name: 'Polymarket Trader API',
         version: '1.0.0',
+        dashboard: '/',
         endpoints: [
           { method: 'GET', path: '/api/health', description: 'Health check' },
           { method: 'GET', path: '/api/portfolio', description: 'Portfolio overview with P&L' },
@@ -374,8 +419,8 @@ export function startApiServer(): void {
   const server = createServer(handleRequest);
 
   server.listen(PORT, () => {
-    console.log(`API server running on http://localhost:${PORT}`);
-    console.log(`Endpoints: http://localhost:${PORT}/api`);
+    console.log(`Dashboard: http://localhost:${PORT}`);
+    console.log(`API: http://localhost:${PORT}/api`);
   });
 }
 
