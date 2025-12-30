@@ -376,8 +376,8 @@ export class EventTrader extends EventEmitter {
       let shouldExit = false;
       let exitReason = '';
 
-      // Take profit on big spike
-      if (pnlPercent >= 12) {
+      // Take profit on big spike (15% to account for spread + slippage + fees ~5%)
+      if (pnlPercent >= 15) {
         shouldExit = true;
         exitReason = `RT: Take profit +${pnlPercent.toFixed(1)}%`;
       }

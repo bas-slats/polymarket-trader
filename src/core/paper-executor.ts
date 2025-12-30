@@ -9,7 +9,12 @@ import type {
 import { store } from '../data/sqlite-store.js';
 import { config } from '../config/index.js';
 
-const SIMULATED_FEE_RATE = 0.0022; // 0.22% per trade (fee + slippage)
+const SIMULATED_FEE_RATE = 0.002; // 0.2% exchange fee
+const SIMULATED_SPREAD = 0.02; // 2% spread simulation (buy higher, sell lower)
+const SIMULATED_SLIPPAGE = 0.005; // 0.5% slippage
+
+// Track positions being sold to prevent duplicate sells
+const sellingPositions = new Set<string>();
 
 export class PaperExecutor {
   private balance: number;
@@ -150,14 +155,21 @@ export class PaperExecutor {
       return null;
     }
 
+    // Simulate realistic execution: buy at ASK (higher than mid)
+    // Mid price = entryPrice, actual execution = mid + spread + slippage
+    const executionPrice = Math.min(
+      0.99,
+      opportunity.entryPrice * (1 + SIMULATED_SPREAD + SIMULATED_SLIPPAGE)
+    );
+
     const fees = size * SIMULATED_FEE_RATE;
     const netSize = size - fees;
-    const shares = netSize / opportunity.entryPrice;
+    const shares = netSize / executionPrice;
 
     // Deduct from balance
     this.balance -= size;
 
-    // Create position
+    // Create position with realistic execution price
     const position = store.createPosition({
       marketId: opportunity.market.id,
       marketQuestion: opportunity.market.question,
@@ -165,8 +177,8 @@ export class PaperExecutor {
       strategy: opportunity.strategy,
       side: opportunity.side,
       outcomeId: opportunity.market.outcomes[opportunity.outcomeIndex]?.id || '',
-      entryPrice: opportunity.entryPrice,
-      currentPrice: opportunity.entryPrice,
+      entryPrice: executionPrice,
+      currentPrice: executionPrice,
       size: netSize,
       shares,
       entryTime: new Date(),
@@ -181,7 +193,7 @@ export class PaperExecutor {
       strategy: opportunity.strategy,
       side: opportunity.side,
       action: 'BUY',
-      price: opportunity.entryPrice,
+      price: executionPrice,
       size: netSize,
       shares,
       fees,
@@ -195,38 +207,55 @@ export class PaperExecutor {
   }
 
   async executeSell(position: Position, currentPrice: number): Promise<Trade | null> {
-    const fees = position.shares * currentPrice * SIMULATED_FEE_RATE;
-    const grossProceeds = position.shares * currentPrice;
-    const netProceeds = grossProceeds - fees;
-    const pnl = netProceeds - position.size;
+    // Prevent duplicate sells
+    if (sellingPositions.has(position.id)) {
+      return null;
+    }
+    sellingPositions.add(position.id);
 
-    // Add to balance
-    this.balance += netProceeds;
+    try {
+      // Simulate realistic execution: sell at BID (lower than mid)
+      // Mid price = currentPrice, actual execution = mid - spread - slippage
+      const executionPrice = Math.max(
+        0.01,
+        currentPrice * (1 - SIMULATED_SPREAD - SIMULATED_SLIPPAGE)
+      );
 
-    // Close position
-    store.closePosition(position.id, currentPrice);
+      const fees = position.shares * executionPrice * SIMULATED_FEE_RATE;
+      const grossProceeds = position.shares * executionPrice;
+      const netProceeds = grossProceeds - fees;
+      const pnl = netProceeds - position.size;
 
-    // Record trade
-    const trade = store.recordTrade({
-      positionId: position.id,
-      marketId: position.marketId,
-      marketQuestion: position.marketQuestion,
-      category: position.category,
-      strategy: position.strategy,
-      side: position.side,
-      action: 'SELL',
-      price: currentPrice,
-      size: netProceeds,
-      shares: position.shares,
-      fees,
-      timestamp: new Date(),
-      pnl,
-    });
+      // Add to balance
+      this.balance += netProceeds;
 
-    // Save snapshot
-    store.savePortfolioSnapshot(this.getPortfolio());
+      // Close position
+      store.closePosition(position.id, executionPrice);
 
-    return trade;
+      // Record trade
+      const trade = store.recordTrade({
+        positionId: position.id,
+        marketId: position.marketId,
+        marketQuestion: position.marketQuestion,
+        category: position.category,
+        strategy: position.strategy,
+        side: position.side,
+        action: 'SELL',
+        price: executionPrice,
+        size: netProceeds,
+        shares: position.shares,
+        fees,
+        timestamp: new Date(),
+        pnl,
+      });
+
+      // Save snapshot
+      store.savePortfolioSnapshot(this.getPortfolio());
+
+      return trade;
+    } finally {
+      sellingPositions.delete(position.id);
+    }
   }
 
   // For arbitrage: buy all outcomes
