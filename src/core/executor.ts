@@ -10,30 +10,11 @@ import { realExecutor } from './real-executor.js';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { store } from '../data/sqlite-store.js';
-import * as readline from 'readline';
 
 // Global deduplication - prevents duplicate transactions across all code paths
 const pendingBuys = new Map<string, number>(); // marketId+side -> timestamp
 const pendingSells = new Set<string>(); // positionId
 const BUY_COOLDOWN_MS = 5000; // 5 second cooldown between buys for same market+side
-
-// Real trading requires explicit confirmation
-const REAL_TRADING_WARNING = `
-================================================================================
-                         REAL TRADING MODE ENABLED
-================================================================================
-
-You are about to trade with REAL MONEY on Polymarket.
-
-- All trades will use your actual USDC balance
-- Losses are REAL and cannot be reversed
-- The bot will make autonomous trading decisions
-- There are NO guarantees of profit
-
-Make sure you understand the risks before proceeding.
-
-================================================================================
-`;
 
 export interface Executor {
   getPortfolio(): Portfolio | Promise<Portfolio>;
@@ -67,14 +48,6 @@ class UnifiedExecutor implements Executor {
       return;
     }
 
-    // Require explicit confirmation for real trading
-    const confirmed = await this.confirmRealTrading();
-    if (!confirmed) {
-      logger.log('INFO', 'Real trading not confirmed, falling back to paper mode');
-      this.mode = 'paper';
-      return;
-    }
-
     try {
       await realExecutor.initialize();
       this.mode = 'real';
@@ -89,41 +62,6 @@ class UnifiedExecutor implements Executor {
       });
       this.mode = 'paper';
     }
-  }
-
-  private async confirmRealTrading(): Promise<boolean> {
-    // If running non-interactively (e.g., in CI), skip confirmation
-    if (!process.stdin.isTTY) {
-      logger.log('WARN', 'Non-interactive mode detected, skipping real trading confirmation');
-      return false;
-    }
-
-    return new Promise((resolve) => {
-      console.log(REAL_TRADING_WARNING);
-
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      });
-
-      rl.question('Type "CONFIRM" to enable real trading, or anything else to use paper mode: ', (answer) => {
-        rl.close();
-        if (answer.trim().toUpperCase() === 'CONFIRM') {
-          console.log('\nReal trading ENABLED. Be careful!\n');
-          resolve(true);
-        } else {
-          console.log('\nPaper trading mode enabled.\n');
-          resolve(false);
-        }
-      });
-
-      // Timeout after 30 seconds - default to paper mode
-      setTimeout(() => {
-        rl.close();
-        console.log('\nConfirmation timeout - defaulting to paper mode.\n');
-        resolve(false);
-      }, 30000);
-    });
   }
 
   isRealMode(): boolean {
