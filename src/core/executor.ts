@@ -52,11 +52,14 @@ class UnifiedExecutor implements Executor {
       await realExecutor.initialize();
       this.mode = 'real';
       this.realModeConfirmed = true;
+      console.log('*** REAL TRADING MODE ENABLED ***');
       logger.log('INFO', 'Initialized in REAL trading mode', {
         address: config.api.address,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`\n*** REAL TRADING FAILED: ${message} ***`);
+      console.error('Falling back to PAPER mode\n');
       logger.log('ERROR', 'Failed to initialize real trading, falling back to paper mode', {
         error: message,
       });

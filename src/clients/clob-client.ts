@@ -112,16 +112,19 @@ export class ClobClient {
       }
     );
 
-    const response = await this.client.post('/auth/derive-api-key', {
-      address: this.address,
-      timestamp,
-      nonce,
-      message,
-      signature,
+    // Derive API key using L1 auth
+    const response = await this.client.get('/auth/derive-api-key', {
+      headers: {
+        'POLY_ADDRESS': this.address,
+        'POLY_SIGNATURE': signature,
+        'POLY_TIMESTAMP': timestamp,
+        'POLY_NONCE': nonce.toString(),
+      },
     });
 
     this.apiKey = response.data.apiKey;
     this.apiSecret = response.data.secret;
+    // Note: also returns passphrase but not needed for L2 auth
   }
 
   // Generate L2 headers for authenticated requests
@@ -273,22 +276,22 @@ export class ClobClient {
 
     const headers = await this.getAuthHeaders();
 
-    const response = await this.client.get('/orders', {
+    const response = await this.client.get('/data/orders', {
       headers,
-      params: { status: 'LIVE' },
+      params: { state: 'LIVE' },
     });
 
     return (response.data || []).map((o: any) => ({
-      orderId: o.orderID || o.id,
-      status: o.status,
-      filledAmount: parseFloat(o.filledAmount || '0'),
-      remainingAmount: parseFloat(o.remainingAmount || '0'),
-      avgFillPrice: parseFloat(o.avgFillPrice || '0'),
-      timestamp: new Date(o.timestamp || o.createdAt).getTime(),
+      orderId: o.id || o.orderID,
+      status: o.status || o.state,
+      filledAmount: parseFloat(o.size_matched || o.filledAmount || '0'),
+      remainingAmount: parseFloat(o.original_size || '0') - parseFloat(o.size_matched || '0'),
+      avgFillPrice: parseFloat(o.price || '0'),
+      timestamp: new Date(o.created_at || o.timestamp).getTime(),
     }));
   }
 
-  // Get positions (balances)
+  // Get positions - uses balance-allowance endpoint
   async getPositions(): Promise<ClobPosition[]> {
     if (!this.isAuthenticated()) {
       throw new Error('Client not authenticated');
@@ -296,14 +299,28 @@ export class ClobClient {
 
     const headers = await this.getAuthHeaders();
 
-    const response = await this.client.get('/positions', { headers });
+    // Get balance allowance which includes token positions
+    const response = await this.client.get('/balance-allowance', {
+      headers,
+      params: { asset_type: 'CONDITIONAL' },
+    });
 
-    return (response.data || []).map((p: any) => ({
-      tokenId: p.asset || p.tokenId,
-      size: parseFloat(p.size || p.balance || '0'),
-      avgPrice: parseFloat(p.avgPrice || '0'),
-      side: p.outcome || 'YES',
-    }));
+    // Parse positions from balance allowance response
+    const positions: ClobPosition[] = [];
+    if (response.data && Array.isArray(response.data)) {
+      for (const item of response.data) {
+        if (parseFloat(item.balance || '0') > 0) {
+          positions.push({
+            tokenId: item.asset_id || item.token_id,
+            size: parseFloat(item.balance || '0'),
+            avgPrice: 0, // Not available from this endpoint
+            side: 'YES', // Would need to determine from token
+          });
+        }
+      }
+    }
+
+    return positions;
   }
 
   // Get USDC balance
@@ -314,9 +331,13 @@ export class ClobClient {
 
     const headers = await this.getAuthHeaders();
 
-    const response = await this.client.get('/balance', { headers });
+    const response = await this.client.get('/balance-allowance', {
+      headers,
+      params: { asset_type: 'COLLATERAL' },
+    });
 
-    return parseFloat(response.data.balance || response.data.available || '0');
+    // USDC balance from collateral
+    return parseFloat(response.data?.balance || response.data?.[0]?.balance || '0');
   }
 
   // Get trade history
@@ -327,7 +348,7 @@ export class ClobClient {
 
     const headers = await this.getAuthHeaders();
 
-    const response = await this.client.get('/trades', {
+    const response = await this.client.get('/data/trades', {
       headers,
       params: { limit },
     });
