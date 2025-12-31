@@ -204,6 +204,7 @@ export class RealExecutor {
       const fees = actualSize * REAL_FEE_RATE;
 
       // Create local position record
+      // cost = total spent, size = net after fees
       const position = store.createPosition({
         marketId: opportunity.market.id,
         marketQuestion: opportunity.market.question,
@@ -214,6 +215,7 @@ export class RealExecutor {
         entryPrice: avgPrice,
         currentPrice: avgPrice,
         size: actualSize - fees,
+        cost: actualSize,  // Total cost including fees
         shares: filledShares,
         entryTime: new Date(),
       });
@@ -390,6 +392,7 @@ export class RealExecutor {
             entryPrice: avgPrice,
             currentPrice: avgPrice,
             size: actualSize - fees,
+            cost: actualSize,  // Total cost including fees
             shares: filledShares,
             entryTime: new Date(),
           });

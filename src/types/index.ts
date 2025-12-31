@@ -40,7 +40,8 @@ export interface Position {
   outcomeId: string;
   entryPrice: number;
   currentPrice: number;
-  size: number;          // USD value
+  size: number;          // USD value invested (after fees)
+  cost: number;          // Total cost deducted from balance (including fees)
   shares: number;        // Number of shares
   entryTime: Date;
   pnl: number;

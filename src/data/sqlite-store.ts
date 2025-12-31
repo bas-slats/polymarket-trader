@@ -43,6 +43,7 @@ export class SQLiteStore {
         entry_price REAL NOT NULL,
         current_price REAL NOT NULL,
         size REAL NOT NULL,
+        cost REAL NOT NULL DEFAULT 0,
         shares REAL NOT NULL,
         entry_time TEXT NOT NULL,
         exit_time TEXT,
@@ -130,8 +131,8 @@ export class SQLiteStore {
   createPosition(position: Omit<Position, 'id' | 'pnl' | 'pnlPercent' | 'status'>): Position {
     const id = randomUUID();
     const stmt = this.db.prepare(`
-      INSERT INTO positions (id, market_id, market_question, category, strategy, side, outcome_id, entry_price, current_price, size, shares, entry_time, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+      INSERT INTO positions (id, market_id, market_question, category, strategy, side, outcome_id, entry_price, current_price, size, cost, shares, entry_time, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
     `);
 
     stmt.run(
@@ -145,6 +146,7 @@ export class SQLiteStore {
       position.entryPrice,
       position.currentPrice,
       position.size,
+      position.cost,
       position.shares,
       position.entryTime.toISOString()
     );
@@ -162,8 +164,9 @@ export class SQLiteStore {
     const position = this.getPosition(positionId);
     if (!position) return;
 
-    const pnl = (currentPrice - position.entryPrice) * position.shares;
-    const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+    // P&L = current value - original cost (includes fees)
+    const currentValue = currentPrice * position.shares;
+    const pnl = currentValue - position.cost;
 
     this.db.prepare(`
       UPDATE positions SET current_price = ?, pnl = ? WHERE id = ?
@@ -174,7 +177,9 @@ export class SQLiteStore {
     const position = this.getPosition(positionId);
     if (!position) return null;
 
-    const pnl = (exitPrice - position.entryPrice) * position.shares;
+    // P&L = exit value - original cost (includes fees)
+    const exitValue = exitPrice * position.shares;
+    const pnl = exitValue - position.cost;
 
     this.db.prepare(`
       UPDATE positions
@@ -202,8 +207,10 @@ export class SQLiteStore {
   }
 
   private rowToPosition(row: any): Position {
-    const pnl = (row.current_price - row.entry_price) * row.shares;
-    const pnlPercent = row.entry_price > 0 ? ((row.current_price - row.entry_price) / row.entry_price) * 100 : 0;
+    const cost = row.cost || row.size; // Fallback to size for old data
+    const currentValue = row.current_price * row.shares;
+    const pnl = currentValue - cost;
+    const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0;
 
     return {
       id: row.id,
@@ -216,6 +223,7 @@ export class SQLiteStore {
       entryPrice: row.entry_price,
       currentPrice: row.current_price,
       size: row.size,
+      cost,
       shares: row.shares,
       entryTime: new Date(row.entry_time),
       pnl,

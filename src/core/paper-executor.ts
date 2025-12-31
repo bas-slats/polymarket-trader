@@ -170,6 +170,8 @@ export class PaperExecutor {
     this.balance -= size;
 
     // Create position with realistic execution price
+    // cost = total amount deducted from balance (including fees)
+    // size = net amount invested (after fees)
     const position = store.createPosition({
       marketId: opportunity.market.id,
       marketQuestion: opportunity.market.question,
@@ -180,6 +182,7 @@ export class PaperExecutor {
       entryPrice: executionPrice,
       currentPrice: executionPrice,
       size: netSize,
+      cost: size,  // Original amount including fees
       shares,
       entryTime: new Date(),
     });
@@ -295,6 +298,7 @@ export class PaperExecutor {
     // Create position for each outcome
     for (const outcome of outcomes) {
       const outcomeSize = (netInvestment * outcome.price) / totalCost;
+      const outcomeCost = (totalInvestment * outcome.price) / totalCost;  // Proportional cost including fees
       const shares = outcomeSize / outcome.price;
 
       const position = store.createPosition({
@@ -307,6 +311,7 @@ export class PaperExecutor {
         entryPrice: outcome.price,
         currentPrice: outcome.price,
         size: outcomeSize,
+        cost: outcomeCost,  // Original amount including fees
         shares,
         entryTime: new Date(),
       });
