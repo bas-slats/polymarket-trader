@@ -152,8 +152,9 @@ export class Dashboard {
       label: ' Open Positions ',
       keys: true,
       fg: 'white',
+      tags: true,
       columnSpacing: 1,
-      columnWidth: [26, 4, 6, 6, 8, 7],
+      columnWidth: [26, 5, 6, 6, 9, 7],
       style: {
         border: { fg: 'cyan' },
         header: { fg: 'cyan', bold: true },
@@ -239,16 +240,31 @@ export class Dashboard {
     };
     this.pnlChart.setData([chartData]);
 
-    // Update positions table
+    // Update positions table with colors
     const posData = portfolio.openPositions.slice(0, 6).map((pos) => {
-      const pnlStr = pos.pnl >= 0 ? `+${pos.pnl.toFixed(2)}` : `${pos.pnl.toFixed(2)}`;
+      const pnlColor = pos.pnl >= 0 ? 'green' : 'red';
+      const pnlSign = pos.pnl >= 0 ? '+' : '';
+      const pnlStr = `{${pnlColor}-fg}${pnlSign}${pos.pnl.toFixed(2)}{/}`;
+      const sideColor = pos.side === 'YES' ? 'green' : 'red';
+      const sideStr = `{${sideColor}-fg}${pos.side}{/}`;
+      const priceChange = pos.currentPrice - pos.entryPrice;
+      const priceColor = priceChange >= 0 ? 'green' : 'red';
+      const currStr = `{${priceColor}-fg}${pos.currentPrice.toFixed(2)}{/}`;
+      const stratColors: Record<string, string> = {
+        value: 'blue',
+        arbitrage: 'yellow',
+        whale: 'magenta',
+        momentum: 'cyan',
+      };
+      const stratColor = stratColors[pos.strategy] || 'white';
+      const stratStr = `{${stratColor}-fg}${pos.strategy.slice(0, 6)}{/}`;
       return [
         pos.marketQuestion.slice(0, 24) + '..',
-        pos.side,
+        sideStr,
         pos.entryPrice.toFixed(2),
-        pos.currentPrice.toFixed(2),
+        currStr,
         pnlStr,
-        pos.strategy.slice(0, 6),
+        stratStr,
       ];
     });
 

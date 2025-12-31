@@ -493,13 +493,17 @@
           noPositions.style.display = 'none';
           tbody.innerHTML = data.positions.map(p => {
             const pnlClass = getPnlClass(p.pnl);
+            const priceChange = p.currentPrice - p.entryPrice;
+            const priceClass = getPnlClass(priceChange);
+            const pnlPct = ((p.currentPrice - p.entryPrice) / p.entryPrice * 100).toFixed(1);
+            const pnlPctStr = priceChange >= 0 ? `+${pnlPct}%` : `${pnlPct}%`;
             return `
               <tr>
                 <td title="${p.market}">${p.market.substring(0, 40)}${p.market.length > 40 ? '...' : ''}</td>
                 <td><span class="badge ${p.strategy}">${p.strategy}</span></td>
                 <td><span class="badge ${p.side.toLowerCase()}">${p.side}</span></td>
                 <td>$${p.entryPrice.toFixed(3)}</td>
-                <td>$${p.currentPrice.toFixed(3)}</td>
+                <td class="${priceClass}">$${p.currentPrice.toFixed(3)} <small>(${pnlPctStr})</small></td>
                 <td>$${p.size.toFixed(2)}</td>
                 <td class="${pnlClass}">${formatPnl(p.pnl)}</td>
               </tr>
