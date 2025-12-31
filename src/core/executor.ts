@@ -9,6 +9,7 @@ import { paperExecutor } from './paper-executor.js';
 import { realExecutor } from './real-executor.js';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import { store } from '../data/sqlite-store.js';
 import * as readline from 'readline';
 
 // Global deduplication - prevents duplicate transactions across all code paths
@@ -155,6 +156,21 @@ class UnifiedExecutor implements Executor {
   }
 
   async executeBuy(opportunity: Opportunity): Promise<Position | null> {
+    // Check if we already have an open position for this market+side
+    const openPositions = store.getOpenPositions();
+    const existingPosition = openPositions.find(
+      (p) => p.marketId === opportunity.market.id && p.side === opportunity.side
+    );
+
+    if (existingPosition) {
+      logger.log('INFO', 'Buy skipped - position already exists', {
+        market: opportunity.market.question.substring(0, 40),
+        side: opportunity.side,
+        existingSize: existingPosition.size,
+      });
+      return null;
+    }
+
     // Deduplication: prevent buying same market+side within cooldown
     const buyKey = `${opportunity.market.id}|${opportunity.side}`;
     const now = Date.now();
